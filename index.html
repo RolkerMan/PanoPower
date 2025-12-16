@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>码上孪动</title>
+    <!-- 引入 FontAwesome -->
+    <link rel="stylesheet" href="https://cdn.jsdmirror.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- 引入 QRCode.js -->
+    <script src="https://cdn.jsdmirror.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.jsdmirror.com/npm/modern-screenshot@4.6.7"></script>
+    <style>
+        :root {
+            --neon-cyan: #00f3ff;
+            --neon-pink: #bc13fe;
+            --bg-dark: #050510;
+            --glass: rgba(255, 255, 255, 0.05);
+            --border-glow: 0 0 10px rgba(0, 243, 255, 0.5);
+            --text-glow: 0 0 5px rgba(188, 19, 254, 0.8);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-dark);
+            color: white;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 动态背景 Canvas */
+        #particles-js {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            background: linear-gradient(135deg, #0b0c15 0%, #1a0b2e 100%);
+        }
+
+        /* 顶部导航 */
+        header {
+            height: 60px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 15px;
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(0, 243, 255, 0.3);
+            z-index: 10;
+        }
+
+        .header-left, .header-right {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .header-right {
+            width: auto;
+            min-width: 90px;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        .btn-icon {
+            background: none;
+            border: 1px solid var(--neon-cyan);
+            color: var(--neon-cyan);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            font-size: 16px;
+            cursor: pointer;
+            box-shadow: 0 0 5px var(--neon-cyan);
+            transition: all 0.3s;
+        }
+
+        .btn-icon:active {
+            background: var(--neon-cyan);
+            color: black;
+        }
+
+        .title-area {
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 18px;
+            background: linear-gradient(to right, var(--neon-cyan), var(--neon-pink));
+            -webkit-background-clip: text;
+            color: transparent;
+            font-weight: 800;
+            letter-spacing: 1px;
+        }
+
+        .slogan {
+            font-size: 10px;
+            color: #ccc;
+            opacity: 0.8;
+            letter-spacing: 2px;
+        }
+
+        /* 主体布局 */
+        main {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* 侧边栏 */
+        .sidebar {
+            width: 60px;
+            background: rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(5px);
+            display: flex;
+            flex-direction: column-reverse; /* 从下到上排列 */
+            overflow-y: auto;
+            border-right: 1px solid rgba(0, 243, 255, 0.1);
+            scrollbar-width: none; /* Firefox */
+        }
+        
+        .sidebar.right-bar {
+            border-left: 1px solid rgba(188, 19, 254, 0.1);
+            border-right: none;
+        }
+
+        .sidebar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .side-title {
+            color: var(--neon-cyan);
+            font-size: 10px;
+            text-align: center;
+            padding: 10px 0;
+            text-orientation: upright;
+            letter-spacing: 4px;
+            font-weight: bold;
+            opacity: 0.7;
+        }
+
+        .slot-btn {
+            height: 50px;
+            margin: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: rgba(255,255,255,0.6);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 4px;
+            transition: 0.2s;
+            user-select: none;
+            background: rgba(0,0,0,0.4);
+        }
+
+        .slot-btn span {
+            pointer-events: none; /* 防止触摸事件被文字捕获 */
+        }
+
+        /* 选中状态 */
+        .slot-btn.active {
+            background: rgba(0, 243, 255, 0.2);
+            border: 1px solid var(--neon-cyan);
+            color: #fff;
+            box-shadow: inset 0 0 10px var(--neon-cyan);
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .right-bar .slot-btn.active {
+            background: rgba(188, 19, 254, 0.2);
+            border: 1px solid var(--neon-pink);
+            box-shadow: inset 0 0 10px var(--neon-pink);
+        }
+
+        /* 中间显示区域 */
+        .center-stage {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            padding: 20px 0;
+        }
+
+        .center-stage-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .qr-container {
+            width: 220px;
+            height: 220px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 2px solid var(--neon-cyan);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.2);
+            position: relative;
+            margin-bottom: 30px;
+        }
+        
+        /* 扫描线动画 */
+        /* .qr-container::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: var(--neon-cyan);
+            box-shadow: 0 0 10px var(--neon-cyan);
+            animation: scan 2s infinite linear;
+            opacity: 0.6;
+        } */
+
+        @keyframes scan {
+            0% { top: 0; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: 100%; opacity: 0; }
+        }
+
+        #qrcode img {
+            display: block;
+            border: 4px solid white; 
+            border-radius: 4px;
+            box-sizing: content-box;
+        }
+
+        .info-panel {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 15px 30px;
+            border-radius: 8px;
+            text-align: center;
+            backdrop-filter: blur(4px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+            width: 80%;
+        }
+
+        .info-row {
+            margin: 5px 0;
+            font-size: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .info-label {
+            color: #aaa;
+            font-size: 12px;
+            margin-right: 10px;
+        }
+
+        .info-value {
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            font-size: 18px;
+            text-shadow: 0 0 5px var(--neon-pink);
+            color: #fff;
+        }
+
+        /* 提示信息 */
+        .toast {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid var(--neon-cyan);
+            padding: 15px 25px;
+            border-radius: 5px;
+            z-index: 100;
+            display: none;
+            color: var(--neon-cyan);
+            text-align: center;
+        }
+
+        /* 截屏预览浮层 */
+        .screenshot-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(86, 86, 86, 0.3)!important;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            z-index: 150;
+        }
+
+        .screenshot-overlay.visible {
+            display: flex;
+        }
+
+        .screenshot-overlay img {
+            max-width: calc(100vw - 60px);
+            max-height: calc(100vh - 60px);
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            background: #000;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* 分享模式（只读）样式 */
+        body.readonly .sidebar {
+            display: none;
+        }
+        body.readonly .header-right {
+            display: none;
+        }
+        body.readonly .qr-container::after {
+            display: none; /* 接收者不需要扫描线，也可以保留 */
+        }
+        
+        .empty-state {
+            color: #666;
+            font-size: 14px;
+        }
+
+    </style>
+</head>
+<body>
+
+    <canvas id="particles-js"></canvas>
+
+    <header>
+        <div class="header-left">
+            <!-- 仅在只读模式或想重置时显示主页按钮 -->
+            <button class="btn-icon" id="btn-home" onclick="goHome()" title="返回主页">
+                <i class="fa fa-home"></i>
+            </button>
+        </div>
+        <div class="title-area">
+            <h1><i class="fas fa-qrcode"></i> 码上孪动</h1>
+            <div class="slogan">码上连接，智慧孪动</div>
+        </div>
+        <div class="header-right">
+            <button class="btn-icon" onclick="editBaseUrl()" title="编辑网址">
+                <i class="fa fa-edit"></i>
+            </button>
+            <button class="btn-icon" id="btn-share" onclick="sharePage()" title="分享页面">
+                <i class="fa fa-share-nodes"></i>
+            </button>
+        </div>
+    </header>
+
+    <main id="main-content">
+        <!-- 左侧栏：外栏 -->
+        <div class="sidebar left-bar" id="bar-outer">
+            <!-- JS 生成按钮 -->
+        </div>
+
+        <!-- 中间展示 -->
+        <div class="center-stage">
+            <div class="center-stage-content">
+                <div class="qr-container">
+                    <div id="qrcode" onclick="captureCenterStage()"></div>
+                    <div id="empty-msg" class="empty-state">请在侧边栏滑动选择</div>
+                </div>
+                
+                <div class="info-panel">
+                    <div class="info-row">
+                        <span class="info-label"><i class="fa fa-location-dot"></i> 位置</span>
+                        <span class="info-value" id="disp-pos">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label"><i class="fa fa-fingerprint"></i> 编号</span>
+                        <span class="info-value" id="disp-id">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧栏：内栏 -->
+        <div class="sidebar right-bar" id="bar-inner">
+            <!-- JS 生成按钮 -->
+        </div>
+    </main>
+
+
+        <div class="toast" id="toast">链接已复制到剪贴板</div>
+
+        <div class="screenshot-overlay" id="screenshot-overlay" aria-hidden="true">
+                <img id="screenshot-image" alt="中心区域截屏" />
+        </div>
+
+        <!-- BASE_URL 编辑弹窗 -->
+        <div id="baseurl-modal" style="display:none;position:fixed;z-index:200;inset:0;background:rgba(0,0,0,0.55);align-items:center;justify-content:center;">
+            <div style="background:rgba(20,20,30,0.98);border-radius:10px;box-shadow:0 8px 32px #0008;padding:32px 24px 20px 24px;min-width:320px;max-width:90vw;display:flex;flex-direction:column;align-items:center;">
+                <div style="font-size:18px;font-weight:bold;color:var(--neon-cyan);margin-bottom:18px;">设置 BASE_URL</div>
+                <textarea id="baseurl-input" rows="3" style="width:100%;padding:8px 12px;border-radius:6px;border:1px solid var(--neon-cyan);background:#181828;color:#fff;font-size:15px;font-family: 'pingfang SC', 'Microsoft YaHei', sans-serif; margin-bottom:18px;outline:none;resize:vertical;"></textarea>
+                <div style="display:flex;gap:16px;">
+                    <button id="baseurl-ok" style="padding:6px 22px;border-radius:5px;border:none;background:var(--neon-cyan);color:#000;font-weight:bold;cursor:pointer;">确定</button>
+                    <button id="baseurl-cancel" style="padding:6px 22px;border-radius:5px;border:none;background:#333;color:#fff;font-weight:bold;cursor:pointer;">取消</button>
+                </div>
+            </div>
+        </div>
+
+<script>
+    /**
+     * 数据配置与变量生成逻辑
+     * 规则:
+     * out_a: 1-15, SN: ...92
+     * out_b: 6-10, SN: ...82
+     * in_a:  1-15, SN: ...89
+     * in_b:  5-1,  SN: ...82
+     */
+    let BASE_URL = localStorage.getItem('BASE_URL');
+    if (!BASE_URL) {
+        editBaseUrl(); // 首次访问强制设置
+    }
+
+    function editBaseUrl() {
+        const modal = document.getElementById('baseurl-modal');
+        const input = document.getElementById('baseurl-input');
+        const okBtn = document.getElementById('baseurl-ok');
+        const cancelBtn = document.getElementById('baseurl-cancel');
+        input.value = BASE_URL || '';
+        modal.style.display = 'flex';
+        input.focus();
+
+        function closeModal() {
+            modal.style.display = 'none';
+            okBtn.removeEventListener('click', onOk);
+            cancelBtn.removeEventListener('click', onCancel);
+            input.removeEventListener('keydown', onKey);
+        }
+        function onOk() {
+            const val = input.value.trim();
+            if (val) {
+                BASE_URL = val;
+                localStorage.setItem('BASE_URL', val);
+                showToast('BASE_URL 已更新');
+                // 刷新页面以应用新 BASE_URL
+                setTimeout(() => location.reload(), 600);
+            } else {
+                showToast('请输入有效的 BASE_URL');
+            }
+            closeModal();
+        }
+        function onCancel() {
+            closeModal();
+        }
+        function onKey(e) {
+            if (e.key === 'Enter') onOk();
+            if (e.key === 'Escape') onCancel();
+        }
+        okBtn.addEventListener('click', onOk);
+        cancelBtn.addEventListener('click', onCancel);
+        input.addEventListener('keydown', onKey);
+    }
+
+        // 预加载 modern-screenshot，用于截屏
+        // const screenshotLibPromise = import('https://cdn.jsdmirror.com/npm/modern-screenshot@4.6.7/+esm');
+
+        const screenshotLibPromise = (async() => modernScreenshot)();
+    
+    // 生成所有数据点的函数
+    function generateData() {
+        const data = [];
+        
+        // Helper to add item
+        const add = (group, posName, prefix, sn, slotNo) => {
+            // 生成唯一ID，例如 out_a_1
+            const id = `${group}_${slotNo}`; 
+            const displayId = `${prefix}${slotNo.toString().padStart(2, '0')}`;
+            const url = `${BASE_URL}?eqSn=${sn}&slotNo=${slotNo}`;
+            
+            data.push({
+                id: id,
+                group: group, // 'out_a', 'out_b', etc
+                posName: posName, // '外栏' or '内栏'
+                displayId: displayId,
+                url: url,
+                slotNo: slotNo,
+                barSide: posName === '外栏' ? 'left' : 'right'
+            });
+        };
+
+        // 1. 左边竖栏 (外栏)
+        // 从下到上：out_a 1~15, out_b 6~10
+        // 注意：HTML 容器是 column-reverse，所以最先 append 的会在最下面
+        // 我们按顺序 append: out_a_1...15, then out_b_6...10
+
+        // out_a (1-15)
+        for(let i=1; i<=15; i++) add('out_a', '外栏', 'A', '2024070104020392', i);
+        // out_b (6-10)
+        for(let i=6; i<=10; i++) add('out_b', '外栏', 'B', '2024070104020382', i);
+
+        // 2. 右边竖栏 (内栏)
+        // 从下到上：in_a 1~15, in_b 5~1
+        // 注意：HTML 容器是 column-reverse
+        // Append 顺序: in_a_1...15, then in_b_5...1 (或者反过来？)
+        // 需求：in_a 1~15 对应 in_a_1 在下，in_a_15 在上？
+        // 需求原文：“从下到上：编号 1~15 (in_a)，编号 5~1 (in_b)”
+        // 这意味着视觉上：底部是 in_a_1，往上到 in_a_15，再往上是 in_b_5，最顶是 in_b_1? 
+        // 还是 in_b_1 是底部？原文“编号 5~1”暗示倒序。
+        // 通常 "5~1" 在 "1~15" 之后，意味着叠加在上面。
+        // 假设视觉堆叠顺序（从底至顶）：in_a_15 -> ... -> in_a_1 -> in_b_5 -> ... -> in_b_1
+        
+        // in_a (15-1)
+        for(let i=15; i>=1; i--) add('in_a', '内栏', 'A', '2024070104020389', i);
+        // in_b (5-1) -> Loop 5 down to 1
+        for(let i=5; i>=1; i--) add('in_b', '内栏', 'B', '2024070104020382', i);
+
+        return data;
+    }
+
+    const allData = generateData();
+    let currentSelection = null;
+
+    // 初始化页面
+    document.addEventListener('DOMContentLoaded', () => {
+        initParticles();
+        
+        // 检查 URL 参数
+        const urlParams = new URLSearchParams(window.location.search);
+        const codeId = urlParams.get('code');
+
+        if (codeId) {
+            // 被分享模式：只读
+            document.body.classList.add('readonly');
+            const item = allData.find(d => d.id === codeId);
+            if (item) {
+                renderQRCode(item);
+            } else {
+                alert("无效的二维码参数");
+                goHome();
+            }
+        } else {
+            // 主页模式：渲染侧边栏
+            renderSidebars();
+            document.getElementById('btn-home').style.visibility = 'hidden'; // 主页不显示Home按钮
+        }
+    });
+
+    // 渲染侧边栏按钮
+    function renderSidebars() {
+        const leftBar = document.getElementById('bar-outer');
+        const rightBar = document.getElementById('bar-inner');
+
+        // 左侧栏：外栏
+        // 过滤出 left side 数据
+        const leftItems = allData.filter(d => d.barSide === 'left');
+        // 因为 CSS 是 column-reverse (底部对齐)，HTML 顺序即为从下到上的顺序
+        leftItems.forEach(item => {
+            const btn = createBtn(item);
+            leftBar.appendChild(btn);
+        });
+        // 加个标题垫底（视觉在最上方? 不，column-reverse下，最后添加的在最上面）
+        // 实际上 column-reverse: 第一个子元素在最下。
+        // 所以我们想要 A1 在最下，先 append A1。
+        // 想要标题在最上，最后 append 标题。
+        const leftTitle = document.createElement('div');
+        leftTitle.className = 'side-title';
+        leftTitle.innerText = '外 栏';
+        leftBar.appendChild(leftTitle);
+
+        // 右侧栏：内栏
+        const rightItems = allData.filter(d => d.barSide === 'right');
+        rightItems.forEach(item => {
+            const btn = createBtn(item);
+            rightBar.appendChild(btn);
+        });
+        const rightTitle = document.createElement('div');
+        rightTitle.className = 'side-title';
+        rightTitle.innerText = '内 栏';
+        rightBar.appendChild(rightTitle);
+
+        // 绑定触摸滑动事件
+        bindTouchEvents(leftBar);
+        bindTouchEvents(rightBar);
+    }
+
+    function createBtn(item) {
+        const div = document.createElement('div');
+        div.className = 'slot-btn';
+        div.dataset.id = item.id;
+        div.innerHTML = `<span>${item.slotNo}</span>`; // 显示数字
+        return div;
+    }
+
+    // 触摸滑动逻辑
+    // 触摸滑动和鼠标点击逻辑
+    function bindTouchEvents(container) {
+        // 触摸滑动
+        container.addEventListener('touchmove', (e) => {
+            e.preventDefault(); 
+            handleTouch(e);
+        }, { passive: false });
+
+        container.addEventListener('touchstart', (e) => {
+            handleTouch(e);
+        }, { passive: false });
+
+        container.addEventListener('touchend', (e) => {
+            // 松手后不需要额外操作
+        });
+
+        // 鼠标点击
+        container.addEventListener('click', (e) => {
+            if (e.target.classList.contains('slot-btn')) {
+                handleSlotSelect(e.target);
+            }
+        });
+    }
+
+    function handleSlotSelect(target) {
+        if (target && target.classList.contains('slot-btn')) {
+            const id = target.dataset.id;
+            // 避免重复渲染
+            if (currentSelection?.id !== id) {
+                document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('active'));
+                // 高亮当前
+                target.classList.add('active');
+                // 查找数据并渲染
+                const item = allData.find(d => d.id === id);
+                if(item) {
+                    renderQRCode(item);
+                    // 添加轻微震动反馈 (Android)
+                    if(navigator.vibrate) navigator.vibrate(10);
+                }
+            }
+        }
+    }
+
+    function handleTouch(e) {
+        const touch = e.touches[0];
+        const target = document.elementFromPoint(touch.clientX, touch.clientY);
+        handleSlotSelect(target);
+    }
+
+    // 渲染二维码和信息
+    function renderQRCode(item) {
+        currentSelection = item;
+        
+        const qrDiv = document.getElementById('qrcode');
+        qrDiv.innerHTML = ""; // 清空
+        document.getElementById('empty-msg').style.display = 'none';
+
+        // 生成二维码
+        new QRCode(qrDiv, {
+            text: item.url,
+            width: 180,
+            height: 180,
+            colorDark : "#000000",
+            colorLight : "#ffffff",
+            correctLevel : QRCode.CorrectLevel.H
+        });
+
+        // 更新文字信息
+        document.getElementById('disp-pos').innerText = item.posName;
+        document.getElementById('disp-id').innerText = item.displayId;
+        
+        // 颜色主题适配（右侧栏显示粉色调文字）
+        const infoVal = document.querySelectorAll('.info-value');
+        if (item.barSide === 'right') {
+            infoVal.forEach(el => el.style.textShadow = '0 0 5px var(--neon-pink)');
+            document.querySelector('.qr-container').style.borderColor = 'var(--neon-pink)';
+        } else {
+            infoVal.forEach(el => el.style.textShadow = '0 0 5px var(--neon-cyan)');
+            document.querySelector('.qr-container').style.borderColor = 'var(--neon-cyan)';
+        }
+    }
+
+    // 截屏并只保留 center-stage-content 区域
+    async function captureCenterStage() {
+        const stage = document.querySelector('.center-stage-content');
+        if (!stage) {
+            showToast('未找到中心区域');
+            return;
+        }
+
+        try {
+            const { domToPng } = await screenshotLibPromise;
+            // 适配高分屏，自动设置 pixelRatio
+            const pixelRatio = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+            const dataUrl = await domToPng(stage, {
+                pixelRatio,
+                backgroundColor: getComputedStyle(document.body).backgroundColor
+            });
+            showScreenshot(dataUrl);
+        } catch (err) {
+            console.error('screenshot failed', err);
+            showToast('截屏失败，请重试');
+        }
+    }
+
+    function showScreenshot(dataUrl) {
+        const overlay = document.getElementById('screenshot-overlay');
+        const img = document.getElementById('screenshot-image');
+        img.src = dataUrl;
+        overlay.classList.add('visible');
+        overlay.setAttribute('aria-hidden', 'false');
+    }
+
+    function hideScreenshot() {
+        const overlay = document.getElementById('screenshot-overlay');
+        overlay.classList.remove('visible');
+        overlay.setAttribute('aria-hidden', 'true');
+    }
+
+    // 分享功能
+    function sharePage() {
+        if (!currentSelection) {
+            showToast("请先选择一个位置");
+            return;
+        }
+
+        // 构建 URL: 当前页面路径 + ?code=ID
+        const baseUrl = window.location.href.split('?')[0];
+        const shareUrl = `${baseUrl}?code=${currentSelection.id}`;
+        
+        // 复制到剪贴板
+        navigator.clipboard.writeText(shareUrl).then(() => {
+            showToast(`已复制链接:\n ${currentSelection.posName} ${currentSelection.displayId}`);
+        }).catch(err => {
+            console.error('Copy failed', err);
+            // 降级方案：弹窗显示
+            prompt("复制以下链接分享:", shareUrl);
+        });
+    }
+
+    function goHome() {
+        // 去掉参数刷新
+        window.location.href = window.location.href.split('?')[0];
+    }
+
+    function showToast(msg) {
+        const t = document.getElementById('toast');
+        t.innerText = msg;
+        t.style.display = 'block';
+        setTimeout(() => {
+            t.style.display = 'none';
+        }, 2000);
+    }
+
+    // --- 粒子背景动画 (纯装饰) ---
+    function initParticles() {
+        const canvas = document.getElementById('particles-js');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+        const particles = [];
+
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        class Particle {
+            constructor() {
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+                this.vx = (Math.random() - 0.5) * 0.5;
+                this.vy = (Math.random() - 0.5) * 0.5;
+                this.size = Math.random() * 2;
+                this.color = Math.random() > 0.5 ? 'rgba(0, 243, 255, 0.5)' : 'rgba(188, 19, 254, 0.5)';
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                if (this.x < 0 || this.x > width) this.vx *= -1;
+                if (this.y < 0 || this.y > height) this.vy *= -1;
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+            }
+        }
+
+        for (let i = 0; i < 50; i++) particles.push(new Particle());
+
+        function animate() {
+            ctx.clearRect(0, 0, width, height);
+            particles.forEach(p => {
+                p.update();
+                p.draw();
+            });
+            // 连线
+            particles.forEach((p1, i) => {
+                for(let j=i+1; j<particles.length; j++) {
+                    const p2 = particles[j];
+                    const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+                    if (dist < 100) {
+                        ctx.beginPath();
+                        ctx.strokeStyle = `rgba(255,255,255,${0.1 - dist/1000})`;
+                        ctx.lineWidth = 0.5;
+                        ctx.moveTo(p1.x, p1.y);
+                        ctx.lineTo(p2.x, p2.y);
+                        ctx.stroke();
+                    }
+                }
+            });
+            requestAnimationFrame(animate);
+        }
+        animate();
+    }
+
+    // 点击浮层空白关闭截图
+    const overlayEl = document.getElementById('screenshot-overlay');
+    overlayEl.addEventListener('click', (e) => {
+        if (e.target === overlayEl) {
+            hideScreenshot();
+        }
+    });
+</script>
+</body>
+</html>
