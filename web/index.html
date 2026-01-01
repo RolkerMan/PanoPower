@@ -12,7 +12,9 @@
     <style>
         :root {
             --neon-cyan: #00f3ff;
+            --neon-cyan55: #00f3ff55;
             --neon-pink: #bc13fe;
+            --neon-pink55: #bc13fe55;
             --bg-dark: #050510;
             --glass: rgba(255, 255, 255, 0.05);
             --border-glow: 0 0 10px rgba(0, 243, 255, 0.5);
@@ -95,6 +97,10 @@
 
         .title-area {
             text-align: center;
+            position: absolute;
+            /* 水平居中 */
+            left: 50%;
+            transform: translateX(-50%);
         }
 
         h1 {
@@ -181,11 +187,19 @@
             font-weight: bold;
             font-size: 14px;
         }
+        .slot-btn.half-active {
+            background: rgba(0, 243, 255, 0.1);
+            border: 1px solid var(--neon-cyan55);
+        }
 
         .right-bar .slot-btn.active {
             background: rgba(188, 19, 254, 0.2);
             border: 1px solid var(--neon-pink);
             box-shadow: inset 0 0 10px var(--neon-pink);
+        }
+        .right-bar .slot-btn.half-active {
+            background: rgba(188, 19, 254, 0.1);
+            border: 1px solid var(--neon-pink55);
         }
 
         /* 中间显示区域 */
@@ -371,12 +385,15 @@
             <div class="slogan">码上连接，智慧孪动</div>
         </div>
         <div class="header-right">
+            <!-- <button class="btn-icon" id="btn-recent-imgs" onclick="showRecentImages()" title="最近图片">
+                <i class="fa fa-images"></i>
+            </button> -->
             <button class="btn-icon" onclick="editBaseUrl()" title="编辑网址">
                 <i class="fa fa-edit"></i>
             </button>
-            <button class="btn-icon" id="btn-share" onclick="sharePage()" title="分享页面">
+            <!-- <button class="btn-icon" id="btn-share" onclick="sharePage()" title="分享页面">
                 <i class="fa fa-share-nodes"></i>
-            </button>
+            </button> -->
         </div>
     </header>
 
@@ -390,7 +407,7 @@
         <div class="center-stage">
             <div class="center-stage-content">
                 <div class="qr-container">
-                    <div id="qrcode" onclick="captureCenterStage()"></div>
+                    <div id="qrcode" onclick="clickQrCode()"></div>
                     <div id="empty-msg" class="empty-state">请在侧边栏滑动选择</div>
                 </div>
                 
@@ -486,10 +503,22 @@
         input.addEventListener('keydown', onKey);
     }
 
-        // 预加载 modern-screenshot，用于截屏
-        // const screenshotLibPromise = import('https://cdn.jsdmirror.com/npm/modern-screenshot@4.6.7/+esm');
+    // 预加载 modern-screenshot，用于截屏
+    // const screenshotLibPromise = import('https://cdn.jsdmirror.com/npm/modern-screenshot@4.6.7/+esm');
 
-        const screenshotLibPromise = (async() => modernScreenshot)();
+    const screenshotLibPromise = (async() => modernScreenshot)();
+
+    function initRecentQrCodeAndSharedImages() {
+        let recentSharedImages = localStorage.getItem('RECENT_SHARED_IMAGES');
+        if(recentSharedImages){
+            recentSharedImages = JSON.parse(recentSharedImages);
+            // 渲染最近一张图片的二维码
+            handleSlotSelect(recentSharedImages[0].id);
+            highlightRecentSharedSlots();
+        } else {
+            recentSharedImages = [];
+        }
+    }
     
     // 生成所有数据点的函数
     function generateData() {
@@ -567,6 +596,7 @@
             // 主页模式：渲染侧边栏
             renderSidebars();
             document.getElementById('btn-home').style.visibility = 'hidden'; // 主页不显示Home按钮
+            initRecentQrCodeAndSharedImages();
         }
     });
 
@@ -641,14 +671,21 @@
         });
     }
 
-    function handleSlotSelect(target) {
+    function handleSlotSelect(targetOrId) {
+        let target = targetOrId;
+        if(typeof targetOrId === "string"){
+            const btn = document.querySelector(`.slot-btn[data-id="${targetOrId}"]`);
+            target = btn;
+        }
+
         if (target && target.classList.contains('slot-btn')) {
-            const id = target.dataset.id;
+            id = target.dataset.id;
             // 避免重复渲染
             if (currentSelection?.id !== id) {
                 document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('active'));
                 // 高亮当前
                 target.classList.add('active');
+    
                 // 查找数据并渲染
                 const item = allData.find(d => d.id === id);
                 if(item) {
@@ -709,8 +746,16 @@
         }
     }
 
+    function clickQrCode() {
+        if(!window.AndroidBridge){
+            captureCenterStage();
+        } else {
+            shareImageFromWeb();
+        }
+    }
+
     // 截屏并只保留 center-stage-content 区域
-    async function captureCenterStage() {
+    async function captureCenterStage(showOverlay = true) {
         const stage = document.querySelector('.center-stage-content');
         if (!stage) {
             showToast('未找到中心区域');
@@ -725,19 +770,24 @@
                 pixelRatio,
                 backgroundColor: getComputedStyle(document.body).backgroundColor
             });
-            showScreenshot(dataUrl);
+            showScreenshot(dataUrl, showOverlay);
         } catch (err) {
             console.error('screenshot failed', err);
             showToast('截屏失败，请重试');
         }
+
+        saveToRecentImages();
+        highlightRecentSharedSlots();
     }
 
-    function showScreenshot(dataUrl) {
+    function showScreenshot(dataUrl, showOverlay = true) {
         const overlay = document.getElementById('screenshot-overlay');
         const img = document.getElementById('screenshot-image');
         img.src = dataUrl;
-        overlay.classList.add('visible');
-        overlay.setAttribute('aria-hidden', 'false');
+        if (showOverlay) {
+            overlay.classList.add('visible');
+            overlay.setAttribute('aria-hidden', 'false');
+        }
     }
 
     function hideScreenshot() {
@@ -779,6 +829,82 @@
         setTimeout(() => {
             t.style.display = 'none';
         }, 2000);
+    }
+
+    // 显示安卓最近分享的5张图片
+    function showRecentImages() {
+        if (window.AndroidBridge && window.AndroidBridge.getRecentImages) {
+            let json = window.AndroidBridge.getRecentImages();
+            let arr = [];
+            try { arr = JSON.parse(json); } catch(e) {}
+            if (!Array.isArray(arr) || arr.length === 0) {
+                showToast('未获取到图片');
+                return;
+            }
+            let html = arr.map(src => `<img src="${src}" style="max-width:80px;max-height:80px;margin:6px;border-radius:8px;box-shadow:0 2px 8px #0008;" />`).join('');
+            let overlay = document.createElement('div');
+            overlay.style = 'position:fixed;inset:0;z-index:300;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;';
+            overlay.innerHTML = `<div style='background:#222;padding:24px 16px;border-radius:12px;max-width:90vw;max-height:90vh;overflow:auto;display:flex;flex-wrap:wrap;'>${html}</div>`;
+            overlay.onclick = function(e){ if(e.target===overlay)document.body.removeChild(overlay); };
+            document.body.appendChild(overlay);
+        } else {
+            showToast('请在安卓App内使用');
+        }
+    }
+    // 网页调用安卓原生分享二维码图片
+    async function shareImageFromWeb() {
+        try{
+            await captureCenterStage(false); // 先截屏更新图片
+        } catch(e){
+            console.error('captureCenterStage failed', e);
+            showToast('截屏失败，无法分享');
+            return;
+        }
+        // 获取二维码图片的 src
+        const qrImg = document.querySelector('#screenshot-image');
+        // 判断是否在安卓 WebView 环境
+        if (window.AndroidBridge && window.AndroidBridge.shareImageFromWeb) {
+            const fileName = `${currentSelection ? currentSelection.posName + "_" + currentSelection.displayId : '未知'}.jpg`
+            window.AndroidBridge.shareImageFromWeb(qrImg.src, fileName);
+
+            saveToRecentImages();
+            highlightRecentSharedSlots();
+        } else {
+            showToast('请在安卓App内使用分享');
+        }
+    }
+
+    function saveToRecentImages(){
+        let recentSharedImages = localStorage.getItem('RECENT_SHARED_IMAGES');
+        const MAX_LEN = 3;
+        // 更新最近分享图片列表，最多保存3张，最新的在前面
+        let arr = [];
+        if(recentSharedImages){
+            arr = JSON.parse(recentSharedImages);
+        }
+        arr = arr.filter(img => img.id !== currentSelection.id); // 去重
+        arr.unshift({ id: currentSelection.id});
+        if(arr.length > MAX_LEN) arr = arr.slice(0, MAX_LEN); // 截断多余
+        localStorage.setItem('RECENT_SHARED_IMAGES', JSON.stringify(arr));
+    }
+
+    function highlightRecentSharedSlots(){
+        let recentSharedImages = localStorage.getItem('RECENT_SHARED_IMAGES');
+        if(recentSharedImages){
+            recentSharedImages = JSON.parse(recentSharedImages);
+            // 先清除所有高亮
+            document.querySelectorAll('.slot-btn.half-active').forEach(btn => {
+                btn.classList.remove('half-active');
+            });
+            // 高亮最近分享的按钮
+            recentSharedImages.forEach(img => {
+                // add highlight
+                const btn = document.querySelector(`.slot-btn[data-id="${img.id}"]`);
+                if(btn){
+                    btn.classList.add('half-active');
+                }
+            });
+        }
     }
 
     // --- 粒子背景动画 (纯装饰) ---

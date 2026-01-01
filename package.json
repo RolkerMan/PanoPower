@@ -1,0 +1,21 @@
+{
+  "name": "panopower",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "npm run copy:web-to-android-assets",
+    "copy:web-to-android-assets": "xcopy /E web\\* AndroidPanoPower\\app\\src\\main\\assets\\"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RolkerMan/PanoPower.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/RolkerMan/PanoPower/issues"
+  },
+  "homepage": "https://github.com/RolkerMan/PanoPower#readme"
+}
