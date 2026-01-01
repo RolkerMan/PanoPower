@@ -9,6 +9,7 @@
     <!-- 引入 QRCode.js -->
     <script src="https://cdn.jsdmirror.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://cdn.jsdmirror.com/npm/modern-screenshot@4.6.7"></script>
+    <script src="./piggyBase64.js"></script>
     <style>
         :root {
             --neon-cyan: #00f3ff;
@@ -19,6 +20,8 @@
             --glass: rgba(255, 255, 255, 0.05);
             --border-glow: 0 0 10px rgba(0, 243, 255, 0.5);
             --text-glow: 0 0 5px rgba(188, 19, 254, 0.8);
+            /* 更多操作悬浮菜单的字颜色，中性色 */
+            --menu-text-color: #ccc;
         }
 
         * {
@@ -202,6 +205,29 @@
             border: 1px solid var(--neon-pink55);
         }
 
+        /* 弹出菜单 */
+        #popup-menu {
+            position:fixed;
+            z-index:300;
+            min-width:140px;
+            background:rgba(20,20,30,0.98);
+            box-shadow:0 4px 16px #0008;
+            border-radius:8px;
+            padding:8px 0;
+            right:18px;
+            top:58px;
+        }
+        #popup-menu button{
+            width:100%;
+            background:none;
+            border:none;
+            color:var(--menu-text-color);
+            font-size:15px;
+            padding:10px 18px;
+            text-align:left;
+            cursor:pointer;
+        }
+
         /* 中间显示区域 */
         .center-stage {
             flex: 1;
@@ -376,7 +402,7 @@
     <header>
         <div class="header-left">
             <!-- 仅在只读模式或想重置时显示主页按钮 -->
-            <button class="btn-icon" id="btn-home" onclick="goHome()" title="返回主页">
+            <button class="btn-icon" id="btn-home" onclick="goHome()" title="返回主页" style="visibility: hidden;">
                 <i class="fa fa-home"></i>
             </button>
         </div>
@@ -394,9 +420,16 @@
             <!-- <button class="btn-icon" id="btn-share" onclick="sharePage()" title="分享页面">
                 <i class="fa fa-share-nodes"></i>
             </button> -->
+            <button class="btn-icon" id="btn-menu" title="更多操作" onclick="showMenu(event)">
+                <i class="fa fa-ellipsis-v"></i>
+            </button>
+        </div>
+        <!-- 弹出菜单 -->
+        <div id="popup-menu" style="display:none;">
+            <button id="menu-clear-recent" onclick="clearRecentShares()">清除分享记录</button>
+            <button id="menu-clear-cache" style="display:none;" onclick="clearResourceCache()">清除存储缓存</button>
         </div>
     </header>
-
     <main id="main-content">
         <!-- 左侧栏：外栏 -->
         <div class="sidebar left-bar" id="bar-outer">
@@ -448,7 +481,7 @@
                 </div>
             </div>
         </div>
-
+    
 <script>
     /**
      * 数据配置与变量生成逻辑
@@ -572,12 +605,14 @@
     }
 
     const allData = generateData();
+    // type annotation
+    /** @type {Array<{id:string,group:string,posName:string,displayId:string,url:string,slotNo:number,barSide:string}>} */
     let currentSelection = null;
 
     // 初始化页面
     document.addEventListener('DOMContentLoaded', () => {
         initParticles();
-        
+
         // 检查 URL 参数
         const urlParams = new URLSearchParams(window.location.search);
         const codeId = urlParams.get('code');
@@ -592,10 +627,10 @@
                 alert("无效的二维码参数");
                 goHome();
             }
+            document.getElementById('btn-home').style.visibility = 'hidden'; // 主页不显示Home按钮
         } else {
             // 主页模式：渲染侧边栏
             renderSidebars();
-            document.getElementById('btn-home').style.visibility = 'hidden'; // 主页不显示Home按钮
             initRecentQrCodeAndSharedImages();
         }
     });
@@ -704,12 +739,13 @@
     }
 
     // 渲染二维码和信息
-    function renderQRCode(item) {
+    async function renderQRCode(item) {
         currentSelection = item;
         
+        document.getElementById('empty-msg').style.display = 'none';
+
         const qrDiv = document.getElementById('qrcode');
         qrDiv.innerHTML = ""; // 清空
-        document.getElementById('empty-msg').style.display = 'none';
 
         // 生成二维码
         new QRCode(qrDiv, {
@@ -725,7 +761,8 @@
         const qrImg = qrDiv.querySelector('img');
         if (qrImg) {
             const centerImg = document.createElement('img');
-            centerImg.src = './piggy.jpg';
+
+            centerImg.src = piggyBase64; // 从 script 中获取的 base64 图片数据
             centerImg.className = 'center-img';
             centerImg.alt = 'logo';
             qrDiv.appendChild(centerImg);
@@ -747,10 +784,10 @@
     }
 
     function clickQrCode() {
-        if(!window.AndroidBridge){
-            captureCenterStage();
-        } else {
+        if(window.AndroidBridge){
             shareImageFromWeb();
+        } else {
+            captureCenterStage();
         }
     }
 
@@ -761,10 +798,8 @@
             showToast('未找到中心区域');
             return;
         }
-
         try {
             const { domToPng } = await screenshotLibPromise;
-            // 适配高分屏，自动设置 pixelRatio
             const pixelRatio = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
             const dataUrl = await domToPng(stage, {
                 pixelRatio,
@@ -775,7 +810,6 @@
             console.error('screenshot failed', err);
             showToast('截屏失败，请重试');
         }
-
         saveToRecentImages();
         highlightRecentSharedSlots();
     }
@@ -854,7 +888,7 @@
     // 网页调用安卓原生分享二维码图片
     async function shareImageFromWeb() {
         try{
-            await captureCenterStage(false); // 先截屏更新图片
+            await captureCenterStage(true); // 先截屏更新图片
         } catch(e){
             console.error('captureCenterStage failed', e);
             showToast('截屏失败，无法分享');
@@ -864,8 +898,14 @@
         const qrImg = document.querySelector('#screenshot-image');
         // 判断是否在安卓 WebView 环境
         if (window.AndroidBridge && window.AndroidBridge.shareImageFromWeb) {
-            const fileName = `${currentSelection ? currentSelection.posName + "_" + currentSelection.displayId : '未知'}.jpg`
-            window.AndroidBridge.shareImageFromWeb(qrImg.src, fileName);
+            if(!currentSelection){
+                showToast('未选择位置，无法分享');
+                return;
+            }
+            const fileName = `${currentSelection.url + "_" + currentSelection.posName + "_" + currentSelection.displayId}.jpg`
+            // 替换文件名中的敏感字符，防止存入系统时报错
+            const safeFileName = fileName.replace(/[\/\\:*?"<>|]/g, '_');
+            window.AndroidBridge.shareImageFromWeb(qrImg.src, safeFileName);
 
             saveToRecentImages();
             highlightRecentSharedSlots();
@@ -906,7 +946,48 @@
             });
         }
     }
+</script>
 
+<script>
+// 弹出菜单逻辑
+function isAndroidWebView() {
+    return typeof window.AndroidBridge !== 'undefined';
+}
+
+function showMenu(e) {
+    const menu = document.getElementById('popup-menu');
+    // 安卓环境才显示清除缓存
+    document.getElementById('menu-clear-cache').style.display = isAndroidWebView() ? '' : 'none';
+    menu.style.display = 'block';
+    // 点击外部关闭
+    setTimeout(() => {
+        document.addEventListener('mousedown', hideMenuOnClick, { once: true });
+    }, 0);
+}
+function hideMenuOnClick(e) {
+    const menu = document.getElementById('popup-menu');
+    if (!menu.contains(e.target)) menu.style.display = 'none';
+}
+// 菜单按钮事件
+function clearResourceCache() {
+    if (isAndroidWebView()) {
+        try {
+            window.AndroidBridge.deleteAllGeneratedResources();
+            showToast('缓存已清除');
+        } catch (e) {
+            showToast('清除缓存失败');
+        }
+    }
+    document.getElementById('popup-menu').style.display = 'none';
+};
+function clearRecentShares() {
+    localStorage.removeItem('RECENT_SHARED_IMAGES');
+    showToast('最近分享记录已清除');
+    location.reload();
+};
+</script>
+
+<script>
     // --- 粒子背景动画 (纯装饰) ---
     function initParticles() {
         const canvas = document.getElementById('particles-js');
@@ -980,5 +1061,6 @@
         }
     });
 </script>
+
 </body>
 </html>

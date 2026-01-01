@@ -14,35 +14,39 @@ class MainActivity : AppCompatActivity() {
         fun getRecentImages(): String {
             val images = mutableListOf<String>()
             try {
-                val projection = arrayOf(
-                    android.provider.MediaStore.Images.Media._ID,
-                    android.provider.MediaStore.Images.Media.DATE_ADDED
-                )
-                val sortOrder = "${android.provider.MediaStore.Images.Media.DATE_ADDED} DESC LIMIT 5"
-                val cursor = this@MainActivity.contentResolver.query(
-                    android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                    projection, null, null, sortOrder
-                )
-                cursor?.use {
-                    val idCol = it.getColumnIndexOrThrow(android.provider.MediaStore.Images.Media._ID)
-                    while (it.moveToNext()) {
-                        val id = it.getLong(idCol)
-                        val uri = android.content.ContentUris.withAppendedId(
-                            android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
-                        val input = this@MainActivity.contentResolver.openInputStream(uri)
-                        val bytes = input?.readBytes()
-                        input?.close()
-                        if (bytes != null) {
-                            val base64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
-                            images.add("data:image/jpeg;base64,$base64")
-                        }
+                val cacheFiles = cacheDir.listFiles { file ->
+                    file.isFile && (file.name.endsWith(".jpg") || file.name.endsWith(".jpeg") || file.name.endsWith(".png"))
+                }?.sortedByDescending { it.lastModified() }?.take(5)
+                cacheFiles?.forEach { file ->
+                    val bytes = file.readBytes()
+                    val base64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                    val mimeType = when {
+                        file.name.endsWith(".png") -> "image/png"
+                        else -> "image/jpeg"
                     }
+                    images.add("data:$mimeType;base64,$base64")
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
             return android.util.Log.d("JSBridge", "Recent images: ${images.size}").let {
                 org.json.JSONArray(images).toString()
+            }
+        }
+        @android.webkit.JavascriptInterface
+        fun deleteAllGeneratedResources(): Boolean {
+            return try {
+                val cacheFiles = cacheDir.listFiles()
+                cacheFiles?.forEach { file ->
+                    // 只删除本 app 生成的图片（可根据命名规则过滤）
+                    if (file.isFile && (file.name.endsWith(".jpg") || file.name.endsWith(".jpeg") || file.name.endsWith(".png"))) {
+                        file.delete()
+                    }
+                }
+                true
+            } catch (e: Exception) {
+                e.printStackTrace()
+                false
             }
         }
         @android.webkit.JavascriptInterface
@@ -60,15 +64,27 @@ class MainActivity : AppCompatActivity() {
                 Thread {
                     try {
                         val file = java.io.File(cacheDir, fileName)
+                        var needWrite = true
                         if (imageUrl.startsWith("data:image")) {
                             // base64 data url
                             val base64Data = imageUrl.substringAfter(",")
-                            val bytes = android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT)
-                            java.io.FileOutputStream(file).use { output ->
-                                output.write(bytes)
+                            if (file.exists()) {
+                                needWrite = false
+                                // // 校验缓存内容
+                                // val oldBytes = file.readBytes()
+                                // val newBytes = android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT)
+                                // if (oldBytes.contentEquals(newBytes)) {
+                                //     needWrite = false
+                                // }
+                            }
+                            if (needWrite) {
+                                val bytes = android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT)
+                                java.io.FileOutputStream(file).use { output ->
+                                    output.write(bytes)
+                                }
                             }
                         } else {
-                            // 普通 url
+                            // 普通 url，不缓存内容
                             val url = java.net.URL(imageUrl)
                             val conn = url.openConnection()
                             conn.connect()
@@ -94,8 +110,58 @@ class MainActivity : AppCompatActivity() {
                 }.start()
             }
         }
+        // @android.webkit.JavascriptInterface
+        // // TODO: 暂时有问题： webview 的 img src 是 base64 的时候截图出来是空白
+        // fun captureStageAndShare(left: String, top: String, width: String, height: String, fileName: String?) {
+        //     runOnUiThread {
+        //         val webView = findViewById<WebView>(R.id.webView)
+        //         // 1. 获取元素位置和大小
+        //         try {
+        //             val leftFloat = left.toFloat()
+        //             val topFloat = top.toFloat()
+        //             val widthFloat = width.toFloat()
+        //             val heightFloat = height.toFloat()
+        //             val dpr = 1; // resources.displayMetrics.density
+        //             // 2. 截图整个 WebView
+        //             val bitmap = android.graphics.Bitmap.createBitmap(
+        //                 webView.width, webView.height, android.graphics.Bitmap.Config.ARGB_8888
+        //             )
+        //             val canvas = android.graphics.Canvas(bitmap)
+        //             webView.draw(canvas)
+        //             // 3. 裁剪目标区域
+        //             val cropLeft = (leftFloat * dpr).toInt()
+        //             val cropTop = (topFloat * dpr).toInt()
+        //             val cropWidth = (widthFloat * dpr).toInt()
+        //             val cropHeight = (heightFloat * dpr).toInt()
+        //             // Ensure crop area is within bitmap bounds
+        //             val safeCropLeft = cropLeft.coerceIn(0, bitmap.width - 1)
+        //             val safeCropTop = cropTop.coerceIn(0, bitmap.height - 1)
+        //             val safeCropWidth = cropWidth.coerceAtMost(bitmap.width - safeCropLeft)
+        //             val safeCropHeight = cropHeight.coerceAtMost(bitmap.height - safeCropTop)
+        //             val cropped = android.graphics.Bitmap.createBitmap(
+        //                 bitmap, safeCropLeft, safeCropTop, safeCropWidth, safeCropHeight
+        //             )
+        //             // 4. 保存/分享/显示
+        //             // ...保存到 cache、分享、弹窗等
+        //             // 例如保存到 cache 并分享
+        //             val file = java.io.File(cacheDir, fileName ?: "stage_capture_${System.currentTimeMillis()}.png")
+        //             java.io.FileOutputStream(file).use { out ->
+        //                 cropped.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
+        //             }
+        //             // 可调用 shareImageToWeChat 或弹窗预览
+        //             val uri = androidx.core.content.FileProvider.getUriForFile(
+        //                 this@MainActivity, "$packageName.fileprovider", file
+        //             )
+        //             shareImageToWeChat(uri)
+        //         } catch (e: Exception) {
+        //             e.printStackTrace()
+        //                 runOnUiThread {
+        //                     android.widget.Toast.makeText(this@MainActivity, "图片分享失败", android.widget.Toast.LENGTH_SHORT).show()
+        //                 }
+        //         }
+        //     }
+        // }
     }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         // 设置状态栏为黑色，适配全面屏
         window.statusBarColor = android.graphics.Color.parseColor("#0A0814")
@@ -127,27 +193,27 @@ class MainActivity : AppCompatActivity() {
         webView.loadUrl("file:///android_asset/index.html")
     }
 
-    // 将 assets 目录下图片复制到 cache 并返回 content:// uri
-    private fun copyAssetToCacheAndGetUri(assetFileName: String): android.net.Uri? {
-        return try {
-            val file = java.io.File(cacheDir, assetFileName)
-            if (!file.exists()) {
-                assets.open(assetFileName).use { input ->
-                    java.io.FileOutputStream(file).use { output ->
-                        input.copyTo(output)
-                    }
-                }
-            }
-            androidx.core.content.FileProvider.getUriForFile(
-                this,
-                "$packageName.fileprovider",
-                file
-            )
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
-        }
-    }
+    // // 将 assets 目录下图片复制到 cache 并返回 content:// uri
+    // private fun copyAssetToCacheAndGetUri(assetFileName: String): android.net.Uri? {
+    //     return try {
+    //         val file = java.io.File(cacheDir, assetFileName)
+    //         if (!file.exists()) {
+    //             assets.open(assetFileName).use { input ->
+    //                 java.io.FileOutputStream(file).use { output ->
+    //                     input.copyTo(output)
+    //                 }
+    //             }
+    //         }
+    //         androidx.core.content.FileProvider.getUriForFile(
+    //             this,
+    //             "$packageName.fileprovider",
+    //             file
+    //         )
+    //     } catch (e: Exception) {
+    //         e.printStackTrace()
+    //         null
+    //     }
+    // }
 
     // 分享图片到微信
     private fun shareImageToWeChat(imageUri: android.net.Uri) {
