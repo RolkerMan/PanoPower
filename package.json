@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "npm run copy:web-to-android-assets",
-    "copy:web-to-android-assets": "xcopy /E web\\* AndroidPanoPower\\app\\src\\main\\assets\\"
+    "copy:web-to-android-assets": "xcopy /E web\\* AndroidPanoPower\\app\\src\\main\\assets\\web\\ && xcopy /E index.html AndroidPanoPower\\app\\src\\main\\assets\\index.html"
   },
   "repository": {
     "type": "git",
