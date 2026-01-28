@@ -1,7 +1,7 @@
 // sw.js - Service Worker for PWA
 const CACHE_NAME = 'pano-power-cache-v1';
 const URLS_TO_CACHE = [
-  '/',
+  // '/',
   '/index.html',
   '/manifest.webmanifest',
   '/web/piggy.jpg',
