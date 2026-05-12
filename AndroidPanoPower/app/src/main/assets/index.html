@@ -4,6 +4,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>码上孪动</title>
+    <!-- 设置主屏幕图标 -->
+    <!--ios和Android都支持-->
+    <link rel="apple-touch-icon-precomposed" href="./web/piggy.jpg">
+    <!--仅Android支持-->
+    <link rel="icon" href="./web/piggy.jpg">
+    <!-- PWA manifest -->
+    <link rel="manifest" href="./manifest.webmanifest">
+    <script>
+        // 注册 Service Worker 以支持 PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('./sw.js').then(function(registration) {
+                    // 注册成功
+                    console.warn('ServiceWorker registration successful with scope: ', registration.scope);
+                }, function(err) {
+                    // 注册失败
+                    console.error('ServiceWorker registration failed: ', err);
+                });
+            });
+        }
+    </script>
     <!-- 引入 FontAwesome -->
     <link rel="stylesheet" href="https://cdn.jsdmirror.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- 引入 QRCode.js -->

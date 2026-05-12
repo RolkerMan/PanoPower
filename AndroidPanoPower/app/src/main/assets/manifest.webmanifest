@@ -1,0 +1,31 @@
+{
+  "name": "码上孪动",
+  "short_name": "码上孪动",
+  "description": "码上连接，智慧孪动",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#050510",
+  "theme_color": "#00f3ff",
+  "orientation": "portrait",
+	"display_override": ["fullscreen", "minimal-ui"],
+  "scope": "./",
+  "icons": [
+    {
+      "src": "./web/piggy.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg"
+    },
+    {
+      "src": "./web/piggy.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg"
+    }
+  ],
+  "prefer_related_applications": true,
+  "related_applications": [
+    {
+      "platform": "play",
+      "id": "com.openai.sora"
+    }
+  ]
+}
